@@ -2,7 +2,8 @@
 
 typedef int(__stdcall* MessageBoxA_t)(HWND hwnd, LPCSTR lpText, LPCSTR lpCaption, UINT Utype);
 MessageBoxA_t OMessageBoxA = MessageBoxA;
-
+typedef FARPROC(__stdcall* GetProcAddress_t)(HMODULE Hmod, LPCSTR ProcName);
+GetProcAddress_t OGetProcAddress = GetProcAddress;
 int __stdcall MessageBoxAHk(HWND hwnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
 {
     lpText = "Hooked";
@@ -10,6 +11,19 @@ int __stdcall MessageBoxAHk(HWND hwnd, LPCSTR lpText, LPCSTR lpCaption, UINT uTy
 
     return OMessageBoxA(hwnd, lpText, lpCaption, uType);
 }
+
+FARPROC __stdcall GetProcAddressHk(HMODULE Hmod, LPCSTR ProcName)
+{
+    std::cout << "[+] Imported: " << ProcName << " Function Address: " << std::hex << (uintptr_t)OGetProcAddress(Hmod, ProcName) << " ModBase: " << (uintptr_t)Hmod << std::endl;
+
+    return OGetProcAddress(Hmod, ProcName);
+}
+
+
+std::string Function = "GetProcAddress";
+std::string ImportName = "KERNEL32.dll";
+uintptr_t HookedFunctionAddress = (uintptr_t)GetProcAddressHk;
+uintptr_t OriginalAddress = (uintptr_t)GetProcAddress;
 
 class PeParser
 {
@@ -502,54 +516,78 @@ private:
     bool IsFile = false;
 };
 
-void DLL_EXPORT GetIAT(uintptr_t Base)
+DWORD WINAPI GetIAT(LPVOID Param)
 {
-    PeParser PeParse = PeParser(Base);
+    PeParser PeParse = PeParser((uintptr_t)GetModuleHandleA("IAT Dummy Application.exe"));
 
     if (PeParse.InitHeaders())
     {
-        std::cout << "PE Is Valid" << std::endl;
+        std::cout << "[+] PE Is Valid" << std::endl;
     }
     else
     {
         std::cout << "[!] Pe Isn't Valid" << std::endl;
         system("pause");
-        return;
+        return NULL;
     }
 
     uintptr_t ImportRVA = PeParse.GetOptionalDataDirectoryRVA(IMAGE_DIRECTORY_ENTRY_IMPORT);
 
-    PIMAGE_IMPORT_DESCRIPTOR PImport = PeParse.GetImportDescriptorByName("USER32.dll", ImportRVA);
+    PIMAGE_IMPORT_DESCRIPTOR PImport = PeParse.GetImportDescriptorByName(ImportName, ImportRVA);
 
     if (!PImport)
     {
-        std::cout << "[!] Failed To Get User32 Imports" << std::endl;
+        std::cout << "[!] Failed To Get Import: " << ImportName << std::endl;
         system("pause");
-        return;
+        return NULL;
     }
 
-    PIMAGE_THUNK_DATA FunctionThunkData = PeParse.GetFunctionThunkByName(PImport, "MessageBoxA", false);
+    PIMAGE_THUNK_DATA FunctionThunkData = PeParse.GetFunctionThunkByName(PImport, Function, false);
 
     if (!FunctionThunkData->u1.Function)
     {
         std::cout << "[!] Failed To Get Function Thunk Data" << std::endl;
         system("pause");
-        return;
+        return NULL;
     }
 
     uintptr_t FunctionAddress = FunctionThunkData->u1.Function;
 
-    std::cout << "Found Original Import Address: 0x" << std::hex << FunctionAddress << std::endl;
+    std::cout << "[+] Found Function Import Address: 0x" << std::hex << FunctionAddress << std::endl;
 
-    std::cout << "Replacing With Hooked Function" << std::endl;
+    std::cout << "[+] Replacing With Hooked Function: " << HookedFunctionAddress << std::endl;
 
     DWORD OldProtect;
 
     VirtualProtect((void*)(&FunctionThunkData->u1.Function), 8, PAGE_EXECUTE_READWRITE, &OldProtect);
 
-    FunctionThunkData->u1.Function = (uintptr_t)MessageBoxAHk;
+    FunctionThunkData->u1.Function = HookedFunctionAddress;
 
     VirtualProtect((void*)(&FunctionThunkData->u1.Function), 8, OldProtect, &OldProtect);
+    
+    while (!GetAsyncKeyState(VK_F7))
+    {
+        Sleep(1000);
+    }
+
+    std::cout << "[+] Uninstalling Hooks" << std::endl;
+
+    VirtualProtect((void*)(&FunctionThunkData->u1.Function), 8, PAGE_EXECUTE_READWRITE, &OldProtect);
+
+    FunctionThunkData->u1.Function = OriginalAddress;
+
+    VirtualProtect((void*)(&FunctionThunkData->u1.Function), 8, OldProtect, &OldProtect);
+
+    std::cout << "[+] Hooks Uninstalled\n" << std::endl;
+
+    FreeLibraryAndExitThread(GetModuleHandleA("IAT Hook PoC.dll"), 0x0);
+}
+
+extern "C" DLL_EXPORT void TestExport()
+{
+    int i = 48888888;
+
+    return;
 }
 
 extern "C" DLL_EXPORT BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -557,7 +595,7 @@ extern "C" DLL_EXPORT BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason,
     switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-        break;
+        CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GetIAT, 0, 0, 0);
 
     case DLL_PROCESS_DETACH:
         break;
@@ -570,4 +608,3 @@ extern "C" DLL_EXPORT BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason,
     }
     return TRUE;
 }
-

@@ -1,32 +1,26 @@
 #include <iostream>
 #include <windows.h>
 
-typedef void(*GetIAT_t)(uintptr_t Base);
+typedef void(*EmulateInjection_t)();
 
 int main()
 {
-    HINSTANCE hGetProcIDDLL = LoadLibrary(L"C:\\Users\\griff\\source\\repos\\IAT Hook PoC\\x64\\Release\\IAT Hook PoC.dll"); // Path to PoC Dll
+    MessageBoxA(0, "Loading Dll", "Not Hooked", MB_OK);
 
-    if (!hGetProcIDDLL)
+    HMODULE Hmod = LoadLibraryA("C:\\Users\\griff\\Desktop\\My Stuff\\My Programming\\IAT Hook PoC\\x64\\Release\\IAT Hook PoC.dll"); // Path to PoC Dll
+
+    if (!Hmod)
     {
-        std::cout << "Failed To Load DLL" << std::endl;
+        std::cout << "Failed To Load DLL: " << std::endl;
         system("pause");
         return 0;
     }
 
-    MessageBoxA(0, "Not Hooked", "Not Hooked", MB_OK);
-
-    GetIAT_t GetIAT = (GetIAT_t)GetProcAddress(hGetProcIDDLL, "GetIAT");
-
-    uintptr_t Base = (uintptr_t)GetModuleHandleA("IAT Dummy Application.exe");
-
-    std::cout << "Base: " << "0x" << std::hex << Base << " GetIAT(): 0x" << std::hex << (uintptr_t)GetIAT << std::endl;
-
-    GetIAT(Base);
-
     while (true)
     {
+        uintptr_t Address = (uintptr_t)GetProcAddress(Hmod, "TestExport");
         MessageBoxA(0, "Not Hooked", "Not Hooked", MB_OK);
+        Sleep(100);
     }
 
     return 0;
