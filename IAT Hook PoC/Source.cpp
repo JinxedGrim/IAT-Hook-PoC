@@ -4,6 +4,7 @@ typedef int(__stdcall* MessageBoxA_t)(HWND hwnd, LPCSTR lpText, LPCSTR lpCaption
 MessageBoxA_t OMessageBoxA = MessageBoxA;
 typedef FARPROC(__stdcall* GetProcAddress_t)(HMODULE Hmod, LPCSTR ProcName);
 GetProcAddress_t OGetProcAddress = GetProcAddress;
+
 int __stdcall MessageBoxAHk(HWND hwnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
 {
     lpText = "Hooked";
@@ -20,10 +21,10 @@ FARPROC __stdcall GetProcAddressHk(HMODULE Hmod, LPCSTR ProcName)
 }
 
 
-std::string Function = "GetProcAddress";
-std::string ImportName = "KERNEL32.dll";
-uintptr_t HookedFunctionAddress = (uintptr_t)GetProcAddressHk;
-uintptr_t OriginalAddress = (uintptr_t)GetProcAddress;
+std::string Function = "MessageBoxA";
+std::string ImportName = "USER32.dll";
+uintptr_t HookedFunctionAddress = (uintptr_t)MessageBoxAHk;
+uintptr_t OriginalAddress = (uintptr_t)MessageBoxA;
 
 class PeParser
 {
