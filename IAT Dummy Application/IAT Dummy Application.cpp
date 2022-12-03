@@ -1,7 +1,7 @@
 #include <iostream>
 #include <windows.h>
 
-typedef void(*EmulateInjection_t)();
+typedef int(__stdcall* MsgBox)(HWND, LPCSTR, LPCSTR, UINT);
 
 int main()
 {
@@ -18,9 +18,10 @@ int main()
 
     while (true)
     {
-        uintptr_t Address = (uintptr_t)GetProcAddress(Hmod, "TestExport");
-        MessageBoxA(0, "Not Hooked", "Not Hooked", MB_OK);
-        Sleep(100);
+        MessageBoxA(0, "Not Hooked", "Normal Call", MB_OK);
+        MsgBox Msg = (MsgBox)GetProcAddress(GetModuleHandleA("USER32.dll"), "MessageBoxA");
+        Msg(0, "Not Hooked", "GetProcAddress", MB_OK);
+        Sleep(500);
     }
 
     return 0;
